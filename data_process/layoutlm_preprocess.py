@@ -320,7 +320,6 @@ def NLD(s1:str,s2:str) -> float:
 def check_answer(answer_list:List[str], words_list:List[str], boundary:int=0.2) -> float:
     similarity_score = 0
     for answer, word in zip(answer_list, words_list):
-        # print('answer word', answer, word)
         ld_score = NLD(answer, word)
 
         # 각 단어의 레벤슈타인 거리가 0.2보다 크면 너무 차이가 많아서 정답이 아님

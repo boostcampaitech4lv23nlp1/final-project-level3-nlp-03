@@ -1,5 +1,4 @@
 import os
-from time import time
 
 def check_dir(save_directory):
     if not os.path.isdir(f'save/{save_directory}'):
