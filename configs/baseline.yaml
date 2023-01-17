@@ -1,0 +1,38 @@
+wandb:
+    entity: naver_mrc_nlp3
+    project: layoutLM
+    group: layoutLMv2
+    experiment: test
+    online: True
+
+save_dir : layoutLMv2
+
+data:
+    # k_fold: 
+    #     n_split: 5
+    #     type: StratifiedKFold # StratifiedShuffleSplit
+    train_load: Trailblazer-Yoo/boostcamp-docvqa
+    val_load: Trailblazer-Yoo/boostcamp-docvqa
+    test_load: Trailblazer-Yoo/boostcamp-docvqa-test
+    preprocess: LayouLMPreprocess
+    
+model:
+    model_name : microsoft/layoutlmv2-base-uncased
+    model_class : BaselineModel
+    trainer_class: BaselineTrainer
+    metric_class : Metrics
+    loss : CEloss
+    optimizer : AdamW
+
+train:
+    seed: 42
+    gpus: 1
+    batch_size: 16
+    max_epoch: 10
+    dropout_rate : 0.1
+    learning_rate: 2e-5
+    logging_step: 1
+    max_length : 384
+    stride : 128
+    n_best_size : 20
+    max_answer_length: 30

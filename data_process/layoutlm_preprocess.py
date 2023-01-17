@@ -1,0 +1,427 @@
+from transformers import PreTrainedTokenizerFast
+from nltk.tag import pos_tag
+import random
+from typing import *
+import re
+from heapq import heappush
+import datasets
+import editdistance
+from datasets.utils.logging import set_verbosity_error
+
+## nltk 에러가 난다면 nltk 데이터셋을 다운로드 해주시기 바랍니다.
+## nltk.download('tagsets')
+## nltk.download('averaged_perceptron_tagger')
+
+set_verbosity_error()
+class LayouLMPreprocess():
+    def __init__(self, tokenizer:PreTrainedTokenizerFast, max_length:int, stride:int):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.stride = stride
+
+    def train(self, train_data:datasets.formatting.formatting.LazyRow):
+        """
+        max_length = 384를 넘어가는 문장이 들어오게 되면 stride 길이 만큼 중첩해서 문장을 쪼개는 방식의 전처리 함수입니다.
+        truncation = only_second로 고정시키며, 이는 첫번째로 들어오는 sentence는 고정시키고 반복적으로 넣어줍니다.
+        그리고 second 문장인 context의 길이가 max_length를 넘어가게 되면 max_length만큼 짤라서 나눠서 tokenizer에 넣게 됩니다.
+        question + context 문장이 384를 넘어가게 되면 384(max_length) + 128(stride) 길이만큼 토크나이징한 후에,
+        question + context[나머지 길이 stride(128) + remainder(ex 124)]만큼 토크나이징을 진행합니다.
+        return: 다음과 같은 키 밸류값을 가집니다.
+            {
+            'input_ids'(List[int]) : 토큰들을 id값으로 반환한 리스트
+            'token_type_ids'(List[int]) : 문장을 구분해주는 리스트, BERT에서는 필수이지만, 나머지에서는 Optional합니다. ex) [0,0,0,1,1,1,2,2,2]
+            'attention_mask'(List[int]) : attention을 적용할 문장일 경우 1, pad토큰일 경우 0으로 반환하는 리스트 ex) [1,1,1,1,1,0,0,0,0]
+            'start_positions'(List[int]) : answer에 해당하는 토큰의 시작 인덱스를 반환하는 리스트
+            'end_positions'(List[int]) : answer에 해당하는 토큰의 끝 인덱스를 반환하는 리스트
+            }
+        """
+
+        '''
+        tokenizer input
+        question(str) : 찾고자 하는 answer에 대한 단일 question
+        words(List[int], dim:(batch, sequence)) : ocr로 추출한 단어들의 리스트
+        boxes(List[in], dim:(batch, point:4)) : ocr로 추출한 x, y 좌표를 width, height로 normalize한 좌표계
+        '''
+        tokenized_sentences = self.tokenizer(
+            train_data['question'],
+            train_data['words'],
+            train_data['boxes'],
+            truncation="only_second",  # max_seq_length까지 truncate한다. pair의 두번째 파트(context)만 잘라냄.
+            max_length=self.max_length,
+            stride=self.stride,
+            return_token_type_ids=True, # BERT 모델일 경우에만 반환
+            return_overflowing_tokens=True, # (List[int]) : 여러개로 쪼갠 문장들이 하나의 같은 context라는 것을 나타내주는 리스트, batch 단위일때 사용합니다.
+            return_offsets_mapping=True,  # 각 토큰에 대해 (char_start, char_end) 정보를 반환한 것인지
+            padding="max_length",
+        )
+        
+        # batch 단위 안에서 각 데이터 및 max_length를 넘어가는 데이터를 포함함
+        # ex) if batch = 4, max_length를 안넘을 경우 -> [0,0,0,0], 1,2번째 데이터가 max_len 넘을 경우 -> [0,1,0,1,0,0]
+        overflow_to_sample_mapping = tokenized_sentences.pop("overflow_to_sample_mapping")
+
+        # offset_mappings으로 토큰이 원본 context 내 몇번째 글자부터 몇번째 글자까지 해당하는지 알 수 있음.
+        offset_mapping = tokenized_sentences.pop("offset_mapping")
+
+        # 정답지를 만들기 위한 리스트
+        tokenized_sentences["start_positions"] = []
+        tokenized_sentences["end_positions"] = []
+        for i, offsets in enumerate(offset_mapping):
+            input_ids = tokenized_sentences["input_ids"][i]
+
+            # cls_token의 인덱스를 찾음
+            if self.tokenizer._cls_token:
+                cls_index = input_ids.index(self.tokenizer.cls_token_id)
+            elif 't5' in self.tokenizer.name_or_path:
+                cls_index = input_ids.index(self.tokenizer('question')['input_ids'][0]) # t5의 question 토큰을 cls 토큰이라 가정
+            else:
+                cls_index = input_ids[0] # 첫번째 토큰
+                
+            # 해당 example에 해당하는 sequence를 찾음.
+            sequence_ids = tokenized_sentences.sequence_ids(i)
+            word_ids = tokenized_sentences.word_ids(i)
+            
+            # sequence가 속하는 example을 찾는다.
+            example_index = overflow_to_sample_mapping[i]
+            answers = train_data['answers'][example_index]
+            words = train_data['words'][example_index]
+            question = train_data['question'][example_index]
+            boxes = train_data['boxes'][example_index]
+
+            # 한 이미지/질문에 여러개의 정답이 있으므로 그 중에 random하게 선택
+            start_positions = []
+            end_positions = []
+            for answer in answers:
+                answer_list = answer.split()
+                match, answer_start_offset, answer_end_offset = find_candidates(answer_list, words, question, boxes)
+                    
+                # 만약 찾지 못했다면 정답의 맨 뒤 문자부터 제거하여 재탐색 시작
+                if not match and len(answer)>1:
+                    for i in range(len(answer), 0, -1):
+                        answer_i_list = (answer[:i-1] + answer[i:]).split()
+                        match, answer_start_offset, answer_end_offset = find_candidates(answer_i_list, words, question, boxes)
+                        
+                        if match:
+                            break
+
+                # 정답이 있는 context(두번째 문장)의 시작 인덱스
+                token_start_index = 0
+                while sequence_ids[token_start_index] != 1:
+                    token_start_index += 1
+                
+                # 정답이 있는 token(두번째 문장)의 끝 인덱스
+                token_end_index = len(input_ids) - 1
+                while sequence_ids[token_end_index] != 1:
+                    token_end_index -= 1
+                
+                # question [SEP] words <- 정답은 words 안에 존재함, but 위에서는 question을 고려 x
+                answer_start_offset += token_start_index
+                answer_end_offset += token_start_index
+
+                # answer가 현재 span을 벗어났는지 체크
+                if not (offsets[token_start_index][0] <= answer_start_offset and answer_end_offset <= offsets[token_end_index][1]):
+                    start_positions.append(cls_index)
+                    end_positions.append(cls_index)
+                else:
+                    # token_start_index와 token_end_index를 answer의 시작점과 끝점으로 옮김
+                    while token_start_index < len(offsets) and offsets[token_start_index][0] <= answer_start_offset:
+                        token_start_index += 1
+                    start_positions.append(token_start_index - 1)
+                    
+                    while offsets[token_end_index][1] >= answer_end_offset:
+                        token_end_index -= 1
+                    end_positions.append(token_end_index + 1)
+
+            if len(start_positions) > 1:
+                ans_i = random.randrange(len(start_positions))
+            else:
+                ans_i = 0
+            
+            tokenized_sentences["start_positions"].append(start_positions[ans_i])
+            tokenized_sentences["end_positions"].append(end_positions[ans_i])
+
+        return tokenized_sentences
+
+    def val(self, val_data:datasets.formatting.formatting.LazyRow):
+        '''
+        return: 다음과 같은 키 밸류값을 가집니다.
+            {
+            'input_ids'(List[int]) : 토큰들을 id값으로 반환한 리스트
+            'token_type_ids'(List[int]) : 문장을 구분해주는 리스트, BERT에서는 필수이지만, 나머지에서는 Optional합니다. ex) [0,0,0,1,1,1,2,2,2]
+            'attention_mask'(List[int]) : attention을 적용할 문장일 경우 1, pad토큰일 경우 0으로 반환하는 리스트 ex) [1,1,1,1,1,0,0,0,0]
+            'offset_mapping'(List[Tuple[int, int]]) : 변환된 토큰들이 실제 문장에 어디에 위치해 있는지를 나타내는 (start, end) 인덱스를 반환한 리스트 ex) [(0, 2), (3, 5), ...]
+            'question_id'(List[int]) : 해당 질문의 id를 의미합니다.
+            }
+            
+        tokenizer input
+        question(str) : 찾고자 하는 answer에 대한 단일 question
+        words(List[int], dim:(batch, sequence)) : ocr로 추출한 단어들의 리스트
+        boxes(List[in], dim:(batch, point:4)) : ocr로 추출한 x, y 좌표를 width, height로 normalize한 좌표계
+        '''
+        tokenized_sentences = self.tokenizer(
+            val_data['question'],
+            val_data['words'],
+            val_data['boxes'],
+            truncation="only_second",  # max_seq_length까지 truncate한다. pair의 두번째 파트(context)만 잘라냄.
+            max_length=self.max_length,
+            stride=self.stride,
+            return_token_type_ids=True, # BERT 모델일 경우에만 반환
+            return_overflowing_tokens=True, # (List[int]) : 여러개로 쪼갠 문장들이 하나의 같은 context라는 것을 나타내주는 리스트, batch 단위일때 사용합니다.
+            return_offsets_mapping=True,  # 각 토큰에 대해 (char_start, char_end) 정보를 반환한 것인지
+            padding="max_length",
+        )
+        
+        # batch 단위 안에서 각 데이터 및 max_length를 넘어가는 데이터를 포함함
+        # ex) if batch = 4, max_length를 안넘을 경우 -> [0,0,0,0], 1,2번째 데이터가 max_len 넘을 경우 -> [0,1,0,1,0,0]
+        overflow_to_sample_mapping = tokenized_sentences.pop("overflow_to_sample_mapping")
+        
+        # offset_mappings으로 토큰이 원본 context 내 몇번째 글자부터 몇번째 글자까지 해당하는지 알 수 있음.
+        offset_mapping = tokenized_sentences.pop("offset_mapping")
+
+        # 정답지를 만들기 위한 리스트
+        tokenized_sentences["start_positions"] = []
+        tokenized_sentences["end_positions"] = []
+        tokenized_sentences['question_id'] = []
+        for i, offsets in enumerate(offset_mapping):
+            input_ids = tokenized_sentences["input_ids"][i]
+
+            # cls_token의 인덱스를 찾음
+            if self.tokenizer._cls_token:
+                cls_index = input_ids.index(self.tokenizer.cls_token_id)
+            elif 't5' in self.tokenizer.name_or_path:
+                cls_index = input_ids.index(self.tokenizer('question')['input_ids'][0]) # t5의 question 토큰을 cls 토큰이라 가정
+            else:
+                cls_index = input_ids[0] # 첫번째 토큰
+                
+            # 해당 example에 해당하는 sequence를 찾음.
+            sequence_ids = tokenized_sentences.sequence_ids(i)
+
+            
+            # sequence가 속하는 example을 찾는다.
+            example_index = overflow_to_sample_mapping[i]
+            answers = val_data['answers'][example_index]
+            words = val_data['words'][example_index]
+            question = val_data['question'][example_index]
+            boxes = val_data['boxes'][example_index]
+            tokenized_sentences['question_id'].append(val_data['questionId'][example_index])
+
+            # 한 이미지/질문에 여러개의 정답이 있으므로 그 중에 random하게 선택
+            start_positions = []
+            end_positions = []
+            for answer in answers:
+                answer_list = answer.split()
+                match, answer_start_offset, answer_end_offset = find_candidates(answer_list, words, question, boxes)
+                    
+                # 만약 찾지 못했다면 정답의 맨 뒤 문자부터 제거하여 재탐색 시작
+                if not match and len(answer)>1:
+                    for i in range(len(answer), 0, -1):
+                        answer_i_list = (answer[:i-1] + answer[i:]).split()
+                        match, answer_start_offset, answer_end_offset = find_candidates(answer_i_list, words, question, boxes)
+                        
+                        if match:
+                            break
+
+                # 정답이 있는 context(두번째 문장)의 시작 인덱스
+                token_start_index = 0
+                while sequence_ids[token_start_index] != 1:
+                    token_start_index += 1
+                
+                # 정답이 있는 token(두번째 문장)의 끝 인덱스
+                token_end_index = len(input_ids) - 1
+                while sequence_ids[token_end_index] != 1:
+                    token_end_index -= 1
+
+                # question [SEP] words <- 정답은 words 안에 존재함, but 위에서는 question을 고려 x
+                answer_start_offset += token_start_index
+                answer_end_offset += token_start_index
+
+                # answer가 현재 span을 벗어났는지 체크
+                if not (offsets[token_start_index][0] <= answer_start_offset and answer_end_offset <= offsets[token_end_index][1]):
+                    start_positions.append(cls_index)
+                    end_positions.append(cls_index)
+                else:
+                    # token_start_index와 token_end_index를 answer의 시작점과 끝점으로 옮김
+                    while token_start_index < len(offsets) and offsets[token_start_index][0] <= answer_start_offset:
+                        token_start_index += 1
+                    start_positions.append(token_start_index - 1)
+                    
+                    while offsets[token_end_index][1] >= answer_end_offset:
+                        token_end_index -= 1
+                    end_positions.append(token_end_index + 1)
+
+            if len(start_positions) > 1:
+                ans_i = random.randrange(len(start_positions))
+            else:
+                ans_i = 0
+            
+            tokenized_sentences["start_positions"].append(start_positions[ans_i])
+            tokenized_sentences["end_positions"].append(end_positions[ans_i])
+
+            # question과 special token을 제외한 offset_mapping으로 교체
+            context_index = 1
+            tokenized_sentences["offset_mapping"][i] = [
+                (o if sequence_ids[k] == context_index else None)
+                for k, o in enumerate(tokenized_sentences["offset_mapping"][i])
+            ]
+
+        return tokenized_sentences
+
+    def test(self, test_data:datasets.formatting.formatting.LazyRow):
+        '''
+        tokenize된 question + context 문장 중에서
+        question에 해당하는 offset_mapping을 None값으로 바꿔주고
+        question_id라는 id값을 추가하여 반환합니다.
+        return: 다음과 같은 키 밸류값을 가집니다.
+            {
+            'input_ids'(List[int]) : 토큰들을 id값으로 반환한 리스트
+            'token_type_ids'(List[int]) : 문장을 구분해주는 리스트, BERT에서는 필수이지만, 나머지에서는 Optional합니다. ex) [0,0,0,1,1,1,2,2,2]
+            'attention_mask'(List[int]) : attention을 적용할 문장일 경우 1, pad토큰일 경우 0으로 반환하는 리스트 ex) [1,1,1,1,1,0,0,0,0]
+            'offset_mapping'(List[Tuple[int, int]]) : 변환된 토큰들이 실제 문장에 어디에 위치해 있는지를 나타내는 (start, end) 인덱스를 반환한 리스트 ex) [(0, 2), (3, 5), ...]
+            'question_id'(List[int]) : 해당 질문의 id를 의미합니다.
+            }
+        '''
+        
+        tokenized_sentences = self.tokenizer(
+            test_data['question'],
+            test_data['words'],
+            test_data['boxes'],
+            truncation="only_second",  # max_seq_length까지 truncate한다. pair의 두번째 파트(context)만 잘라냄.
+            max_length=self.max_length,
+            stride=self.stride,
+            return_token_type_ids=True, # BERT 모델일 경우에만 반환
+            return_overflowing_tokens=True, # (List[int]) : 여러개로 쪼갠 문장들이 하나의 같은 context라는 것을 나타내주는 리스트, batch 단위일때 사용합니다.
+            return_offsets_mapping=True,  # 각 토큰에 대해 (char_start, char_end) 정보를 반환한 것인지
+            padding="max_length",
+        )
+        
+        # batch 단위 안에서 각 데이터 및 max_length를 넘어가는 데이터를 포함함
+        # ex) if batch = 4, max_length를 안넘을 경우 -> [0,0,0,0], 1,2번째 데이터가 max_len 넘을 경우 -> [0,1,0,1,0,0]
+        overflow_to_sample_mapping = tokenized_sentences.pop("overflow_to_sample_mapping")
+
+        # 정답지를 만들기 위한 리스트
+        tokenized_sentences['question_id'] = []
+
+        for i in range(len(tokenized_sentences["input_ids"])):
+            sequence_ids = tokenized_sentences.sequence_ids(i)
+            context_index = 1
+
+            example_index = overflow_to_sample_mapping[i]
+            tokenized_sentences["question_id"].append(test_data["questionId"][example_index])
+
+            tokenized_sentences["offset_mapping"][i] = [
+                (o if sequence_ids[k] == context_index else None)
+                for k, o in enumerate(tokenized_sentences["offset_mapping"][i])
+            ]
+
+        return tokenized_sentences
+
+def NLD(s1:str,s2:str) -> float:
+    return editdistance.eval(s1.lower(),s2.lower()) / ((len(s1)+len(s2))/2) # normalized_levenshtein_distance
+
+def check_answer(answer_list:List[str], words_list:List[str], boundary:int=0.2) -> float:
+    similarity_score = 0
+    for answer, word in zip(answer_list, words_list):
+        # print('answer word', answer, word)
+        ld_score = NLD(answer, word)
+
+        # 각 단어의 레벤슈타인 거리가 0.2보다 크면 너무 차이가 많아서 정답이 아님
+        if ld_score >= boundary:
+            return 100 # 레벤슈타인의 최대값은 1이므로 100은 나올 수 없음
+
+        else: similarity_score += ld_score
+        
+    return similarity_score / len(answer_list) # 가장 좋은 값은 0.0
+    
+def calculate_euclidean_mean(question_points:List[Tuple[int]], boxes:List[Tuple[int]]):
+    euclidean = 0
+    a_point = ((boxes[2] + boxes[0])/2, (boxes[3] + boxes[1])/2)
+    for q_point in question_points:
+        euclidean += ((a_point[0] - q_point[0])**2 + (a_point[1] - q_point[1])**2)**(1/2)
+        
+    return euclidean / len(question_points)
+
+ 
+def clean_text(raw_string:str) -> str:
+    #텍스트에 포함되어 있는 특수 문자 제거
+    text = re.sub('[-=+,#/\?^$.@*\※~ㆍ!…]','', raw_string)
+ 
+    return text
+ 
+def find_noun_ngram(question:str, ngram:int) -> Set[Tuple[str]]:
+    if ngram == 1: # unigram일 경우
+        part_of_speech = {'NN', 'NNS','NNP', 'NNPS', 'POS','RP', 'CD', 'FW', 'VBG'}
+    else:
+        part_of_speech = {'NN', 'NNS','NNP', 'NNPS', 'IN', 'POS','RP', 'CD', 'FW', 'VBG', 'JJR', 'JJS', 'RBR', 'RBS'}
+        
+    result = set()
+    question:List[str] = question.split()
+    ngram_questions = [question[i:i+ngram] for i in range(len(question) - (ngram-1))]
+    for question in ngram_questions:
+        tmp_storage = []
+        for tag in pos_tag(question):
+            if tag[1] in part_of_speech:
+                tmp_storage.append(clean_text(tag[0]))
+                
+        if len(tmp_storage) == ngram:
+            result.add(tuple(tmp_storage))
+
+    yield from result
+
+def find_points(question:str, words_list:List[str], boxes:List[List[int]], ngrams:int=3) -> List[Tuple[int]]:
+    question_words = sum([[ngram_question for ngram_question in find_noun_ngram(question, ngram)] for ngram in range(1, ngrams+1)], [])
+    # boxes : (x1, y1, x2, y2)
+    result = []
+    for question in question_words:
+        if question:
+            question_list = list(question)
+            search_range = len(words_list) - (len(question_list)-1)
+            for idx, i in enumerate(range(search_range)):
+                nld = check_answer(question_list, words_list[i:i+len(question_list)], boundary=0.2)
+                if nld != 100:
+                    # 여러 단어들 중에서 중앙에 위치한 단어 뽑기 및 단어의 정중앙 좌표 위치 뽑아내기
+                    if len(question) % 2 == 0: # ex) I love you, too -> love you
+                        bb1 = boxes[idx+(len(question)//2)-1]
+                        bb2 = boxes[idx+(len(question)//2)]
+
+                        bp1 = ((bb1[2] + bb1[0])/2, (bb1[3] + bb1[1])/2)
+                        bp2 = ((bb2[2] + bb2[0])/2, (bb2[3] + bb2[1])/2)
+                        result.append(((bp2[0] + bp1[0])/2, (bp2[1] + bp1[1])/2))
+                    else: # ex) I love you -> love
+                        bb = boxes[idx+ (len(question)//2)]
+                        result.append(((bb[2] + bb[0])/2, (bb[3] + bb[1])/2))
+                    
+    return result
+
+def find_candidates(answer_list:List[str], words_list:List[str], question, boxes):
+    nld_l = []
+    search_range = len(words_list) - (len(answer_list)-1)
+    for idx, i in enumerate(range(search_range)):
+        nld = check_answer(answer_list, words_list[i:i+len(answer_list)])
+        if nld != 100:
+            # 각 원소 : normalized_levenshtein_distance, answer, start_idx, end_idx
+            nld_l.append((nld, answer_list, idx, idx+len(answer_list)-1))
+                
+    if nld_l:
+        nld_l.sort(key=lambda x: x[0]) # nld 최솟값 정렬
+        if len(nld_l) == 1: # 하나만 뽑힘
+            return nld_l[0][1], nld_l[0][2], nld_l[0][3]
+        
+        elif nld_l[0][0] == nld_l[1][0]: # 여러개 뽑힌 것들 중에 동일한 NLD 존재
+            # 핵심 단어와의 유클리디안 거리를 통해 동일한 정답 중에서 최적을 선택
+            question_points = find_points(question, words_list, boxes, ngrams=3)
+            
+            if not question_points:
+                return nld_l[0][1], nld_l[0][2], nld_l[0][3]
+          
+            candidates = []
+            for q in nld_l:
+                if q[0] == nld_l[0][0]:
+                    euc_dist = calculate_euclidean_mean(question_points, boxes[q[2]])
+                    heappush(candidates, [euc_dist, q[1], q[2], q[3]])
+                else:
+                    break
+
+            return candidates[0][1], candidates[0][2], candidates[0][3]
+        else: # 여러개 뽑힌 것들 중에 첫번째가 가장 적합함
+            return nld_l[0][1], nld_l[0][2], nld_l[0][3]
+    else:
+        return None, 0, 0
