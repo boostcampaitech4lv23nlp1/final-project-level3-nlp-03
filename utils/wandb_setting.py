@@ -26,14 +26,19 @@ def wandb_setting(config:DictConfig, sweep:bool=False):
 
     assert config.get('wandb'), "Please write wandb configuration in config.yaml file"
     
-    config_w = disentangle(dict(), config)
-    wandb.login()
-    
-    print(OmegaConf.to_yaml(config))
+    try:
+        config_w = disentangle(dict(), config)
+        wandb.login()
+        
+        print(OmegaConf.to_yaml(config))
 
-    wandb.init(entity=config.wandb.entity,
-                project=config.wandb.project,
-                group=config.wandb.group,
-                name=config.wandb.experiment,
-                mode="online" if config.wandb.online else 'offline',
-                config=config_w)
+        wandb.init(entity=config.wandb.entity,
+                    project=config.wandb.project,
+                    group=config.wandb.group,
+                    name=config.wandb.experiment,
+                    mode="online" if config.wandb.online else 'offline',
+                    config=config_w)
+        return True
+    except:
+        print('='*20, '에러가 발생하여 완디비 설정을 off하고 진행합니다.', '='*20, sep='\n')
+        return False

@@ -5,8 +5,8 @@ import numpy as np
 
 class Metrics_nbest():
     def __init__(self, dataset, raw_data, n_best_size, max_answer_length, save_dir, mode = 'train', tokenizer=None):
-        self.features = dataset # 원본 소스코드에서도 전처리가 완료된 dataset을 의미
-        self.examples = raw_data # 원본 소스코드에서는 전처리 전의 원본 데이터인 example을 의미
+        self.features = dataset # 전처리가 완료된 dataset을 의미
+        self.examples = raw_data # 전처리 전의 원본 데이터인 example을 의미
         self.n_best_size = n_best_size
         self.max_answer_length = max_answer_length
         self.save_dir = save_dir

@@ -11,9 +11,9 @@ data:
     # k_fold: 
     #     n_split: 5
     #     type: StratifiedKFold # StratifiedShuffleSplit
-    train_load: Trailblazer-Yoo/boostcamp-docvqa
-    val_load: Trailblazer-Yoo/boostcamp-docvqa
-    test_load: Trailblazer-Yoo/boostcamp-docvqa-test
+    train_load: Trailblazer-Yoo/boostcamp-docvqa_v2
+    val_load: Trailblazer-Yoo/boostcamp-docvqa_v2
+    test_load: Trailblazer-Yoo/boostcamp-docvqa_v2-test
     preprocess: LayouLMPreprocess
     
 model:
@@ -28,11 +28,13 @@ train:
     seed: 42
     gpus: 1
     batch_size: 16
+    inference: True
+    test_batch_size: 16
     max_epoch: 10
     dropout_rate : 0.1
     learning_rate: 2e-5
     logging_step: 1
-    max_length : 384
+    max_length : 512
     stride : 128
     n_best_size : 20
-    max_answer_length: 30
+    max_answer_length: 20
