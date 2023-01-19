@@ -6,7 +6,7 @@ class BaselineModel(nn.Module):
     """_summary_
     베이스라인 모델입니다.
     """
-    def __init__(self, model_name, num_labels, dropout_rate, num_layers=1):
+    def __init__(self, model_name, num_labels, dropout_rate, num_layers=2):
         super().__init__()
         self.dropout_rate = dropout_rate
         self.num_labels = num_labels

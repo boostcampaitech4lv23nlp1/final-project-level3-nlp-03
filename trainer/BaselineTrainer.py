@@ -260,7 +260,7 @@ class BaselineTrainer():
         # loss 기준
         best_model = self.best_model_epoch[np.array(self.val_loss_values).argmin()]
         # score 기준
-        best_model = self.best_model_epoch[np.array(self.val_score_values).argmax()]
+        # best_model = self.best_model_epoch[np.array(self.val_score_values).argmax()]
         os.rename(best_model, best_model.split('.pt')[0] + '_best.pt')
         
         return best_model.split('.pt')[0] + '_best.pt'
