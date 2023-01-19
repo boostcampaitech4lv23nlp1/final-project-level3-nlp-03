@@ -1,0 +1,37 @@
+wandb:
+    entity: naver_mrc_nlp3
+    project: layoutLM
+    group: layoutLMv2
+    experiment: test
+    use_wandb: True # trainer에서 wandb를 사용할지 안할지
+    online: True # 온라인으로 할지 오프라인으로 할지
+
+save_dir : layoutLMv2
+do_predict: True
+
+data:
+    train_load: Trailblazer-Yoo/boostcamp-docvqa-v2
+    val_load: Trailblazer-Yoo/boostcamp-docvqa-v2
+    test_load: Trailblazer-Yoo/boostcamp-docvqa-v2-test
+    preprocess: LayouLMPreprocess
+    
+model:
+    model_name : microsoft/layoutlmv2-base-uncased
+    model_class : BaselineModel
+    trainer_class: BaselineTrainer
+    metric_class : Metrics_nbest
+    optimizer : AdamW
+
+train:
+    seed: 42
+    gpus: 1
+    batch_size: 16
+    test_batch_size: 16
+    max_epoch: 5
+    dropout_rate : 0.1
+    learning_rate: 3e-5
+    logging_step: 1
+    max_length : 512
+    stride : 128
+    n_best_size : 20
+    max_answer_length: 20
