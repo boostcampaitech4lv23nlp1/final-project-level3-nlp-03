@@ -60,6 +60,7 @@ class LayouLMPreprocess():
         overflow_to_sample_mapping = tokenized_sentences.pop("overflow_to_sample_mapping")
 
         # 정답지를 만들기 위한 리스트
+        tokenized_sentences['image'] = []
         tokenized_sentences["start_positions"] = []
         tokenized_sentences["end_positions"] = []
         for i, example_index in enumerate(overflow_to_sample_mapping):
@@ -80,6 +81,7 @@ class LayouLMPreprocess():
             words = train_data['words'][example_index]
             question = train_data['question'][example_index]
             boxes = train_data['boxes'][example_index]
+            tokenized_sentences['image'].append(train_data['image'][example_index])
 
             # 한 이미지/질문에 여러개의 정답이 있으므로 그 중에 random하게 선택
             start_positions = []
@@ -127,8 +129,16 @@ class LayouLMPreprocess():
                     end_positions.append(cls_index)
                     
             if len(start_positions) > 1:
-                ans_i = random.randrange(len(start_positions))
-            else:
+                if max(end_positions) != 0:
+                    start_positions.sort(reverse=True)
+                    end_positions.sort(reverse=True)
+                    try: # [CLS] 토큰을 정답으로 한 경우를 제거
+                        ans_i = random.randrange(len(end_positions[:end_positions.index(0)]))
+                    except ValueError: # [CLS] 토큰을 정답으로 한 경우가 없다면
+                        ans_i = random.randrange(len(end_positions))
+                else: # [CLS] 토큰을 정답으로 한 경우만 존재함
+                    ans_i = random.randrange(len(end_positions))
+            else: # 단 하나의 정답만 존재
                 ans_i = 0
             
             tokenized_sentences["start_positions"].append(start_positions[ans_i])
@@ -143,7 +153,7 @@ class LayouLMPreprocess():
             'input_ids'(List[int]) : 토큰들을 id값으로 반환한 리스트
             'token_type_ids'(List[int]) : 문장을 구분해주는 리스트, BERT에서는 필수이지만, 나머지에서는 Optional합니다. ex) [0,0,0,1,1,1,2,2,2]
             'attention_mask'(List[int]) : attention을 적용할 문장일 경우 1, pad토큰일 경우 0으로 반환하는 리스트 ex) [1,1,1,1,1,0,0,0,0]
-            'question_id'(List[int]) : 해당 질문의 id를 의미합니다.
+            'questionId'(List[int]) : 해당 질문의 id를 의미합니다.
             }
             
         tokenizer input
@@ -169,9 +179,11 @@ class LayouLMPreprocess():
         overflow_to_sample_mapping = tokenized_sentences.pop("overflow_to_sample_mapping")
 
         # 정답지를 만들기 위한 리스트
+        tokenized_sentences['image'] = []
         tokenized_sentences["start_positions"] = []
         tokenized_sentences["end_positions"] = []
-        tokenized_sentences['question_id'] = []
+        tokenized_sentences['questionId'] = []
+        tokenized_sentences['word_ids'] = []
         for i, example_index in enumerate(overflow_to_sample_mapping):
             input_ids = tokenized_sentences["input_ids"][i]
             words_idx_mapping = tokenized_sentences.word_ids(i)
@@ -190,7 +202,7 @@ class LayouLMPreprocess():
             words = val_data['words'][example_index]
             question = val_data['question'][example_index]
             boxes = val_data['boxes'][example_index]
-            tokenized_sentences['question_id'].append(val_data['questionId'][example_index])
+            tokenized_sentences['image'].append(val_data['image'][example_index])
 
             # 한 이미지/질문에 여러개의 정답이 있으므로 그 중에 random하게 선택
             start_positions = []
@@ -237,26 +249,39 @@ class LayouLMPreprocess():
                     end_positions.append(cls_index)
 
             if len(start_positions) > 1:
-                ans_i = random.randrange(len(start_positions))
-            else:
+                if max(end_positions) != 0:
+                    start_positions.sort(reverse=True)
+                    end_positions.sort(reverse=True)
+                    try: # [CLS] 토큰을 정답으로 한 경우를 제거
+                        ans_i = random.randrange(len(end_positions[:end_positions.index(0)]))
+                    except ValueError: # [CLS] 토큰을 정답으로 한 경우가 없다면
+                        ans_i = random.randrange(len(end_positions))
+                else: # [CLS] 토큰을 정답으로 한 경우만 존재함
+                    ans_i = random.randrange(len(end_positions))
+            else: # 단 하나의 정답만 존재
                 ans_i = 0
-            
+                
             tokenized_sentences["start_positions"].append(start_positions[ans_i])
             tokenized_sentences["end_positions"].append(end_positions[ans_i])
-
+            
+            tokenized_sentences['questionId'].append(val_data['questionId'][example_index])
+            tokenized_sentences["word_ids"].append([
+                (o if sequence_ids[k] == 1 else None) for k, o in enumerate(words_idx_mapping)
+            ]) # 원본에서 해당 인덱스를 참조하기 위해
+            
         return tokenized_sentences
 
     def test(self, test_data:datasets.formatting.formatting.LazyBatch) -> transformers.tokenization_utils_base.BatchEncoding:
         '''
         tokenize된 question + context 문장 중에서
         question에 해당하는 offset_mapping을 None값으로 바꿔주고
-        question_id라는 id값을 추가하여 반환합니다.
+        questionId라는 id값을 추가하여 반환합니다.
         return: 다음과 같은 키 밸류값을 가집니다.
             {
             'input_ids'(List[int]) : 토큰들을 id값으로 반환한 리스트
             'token_type_ids'(List[int]) : 문장을 구분해주는 리스트, BERT에서는 필수이지만, 나머지에서는 Optional합니다. ex) [0,0,0,1,1,1,2,2,2]
             'attention_mask'(List[int]) : attention을 적용할 문장일 경우 1, pad토큰일 경우 0으로 반환하는 리스트 ex) [1,1,1,1,1,0,0,0,0]
-            'question_id'(List[int]) : 해당 질문의 id를 의미합니다.
+            'questionId'(List[int]) : 해당 질문의 id를 의미합니다.
             }
         '''
         
@@ -277,19 +302,18 @@ class LayouLMPreprocess():
         overflow_to_sample_mapping = tokenized_sentences.pop("overflow_to_sample_mapping")
 
         # 정답지를 만들기 위한 리스트
-        tokenized_sentences['question_id'] = []
+        tokenized_sentences['image'] = []
+        tokenized_sentences['questionId'] = []
         tokenized_sentences['word_ids'] = []
-
         for i, example_index in enumerate(overflow_to_sample_mapping):
             sequence_ids = tokenized_sentences.sequence_ids(i)
-            context_index = 1
 
-            tokenized_sentences["question_id"].append(test_data["questionId"][example_index])
-
-            tokenized_sentences["word_ids"] = [
-                (o if sequence_ids[k] == context_index else None)
+            tokenized_sentences['image'].append(test_data['image'][example_index])
+            tokenized_sentences["questionId"].append(test_data["questionId"][example_index])
+            tokenized_sentences["word_ids"].append([
+                (o if sequence_ids[k] == 1 else None)
                 for k, o in enumerate(tokenized_sentences.word_ids(i))
-            ]
+            ])
 
         return tokenized_sentences
 

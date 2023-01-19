@@ -29,16 +29,19 @@ def wandb_setting(config:DictConfig, sweep:bool=False):
     try:
         config_w = disentangle(dict(), config)
         wandb.login()
-        
         print(OmegaConf.to_yaml(config))
-
-        wandb.init(entity=config.wandb.entity,
+        
+        if config.wandb.use_wandb:
+            wandb.init(entity=config.wandb.entity,
                     project=config.wandb.project,
                     group=config.wandb.group,
                     name=config.wandb.experiment,
                     mode="online" if config.wandb.online else 'offline',
                     config=config_w)
-        return True
+            return True
+        else:
+            print('='*20, 'use_wandb = False이므로 wandb를 사용하지 않습니다.', '='*20, sep='\n')
+            return False
     except:
         print('='*20, '에러가 발생하여 완디비 설정을 off하고 진행합니다.', '='*20, sep='\n')
         return False

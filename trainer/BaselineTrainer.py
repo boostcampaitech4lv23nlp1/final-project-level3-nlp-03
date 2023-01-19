@@ -9,10 +9,11 @@ import gc
 import torch.nn as nn
 from omegaconf import DictConfig
 from utils import wandb_setting
+from utils import check_dir
 from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
-from transformers import Trainer, PreTrainedModel, DataCollator, PreTrainedTokenizerBase, DataCollatorWithPadding, default_data_collator
+from transformers import PreTrainedModel, DataCollator, PreTrainedTokenizerBase, DataCollatorWithPadding, default_data_collator
 
-class BaselineTrainer(Trainer):
+class BaselineTrainer():
     """
     훈련과정입니다.
     """
@@ -28,9 +29,6 @@ class BaselineTrainer(Trainer):
         compute_metrics = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None)
     ):
-        super().__init__()
-
-        assert not config, "Please add config file"
         self.config = config
 
         self.device = torch.device('cuda')
@@ -47,22 +45,30 @@ class BaselineTrainer(Trainer):
         self.compute_metrics = compute_metrics
         self.optimizer, self.lr_scheduler = optimizers
 
-        self.is_wandb = wandb_setting(config)
-        self.best_model_epoch, self.val_loss_values = [], []
+        self.save_dir = check_dir(config.save_dir)
+        self.compute_metrics._set_save_dir(self.save_dir)
+        self.best_model_epoch, self.val_loss_values, self.val_score_values = [], [], []
 
     def loop(self):
+        self.is_wandb = wandb_setting(self.config)
         for epoch in range(self.config.train.max_epoch):
             standard_time = time.time()
             self._train_epoch()
-            self._valid_epoch(epoch)
+            self._eval_epoch(epoch)
             if self.is_wandb:
                 wandb.log({'epoch' : epoch, 'runtime(Min)' : (time.time() - standard_time) / 60})
         torch.cuda.empty_cache()
         gc.collect()
         del self.train_dataset, self.val_dataset
-        best_model_name = self.select_best_model()
-        if self.config.inference:
-            self._test(best_model_name)
+        best_model_name = self.select_best_model() if self.config.train.max_epoch > 1 else None
+        if self.config.do_test and best_model_name:
+            self._predcit(best_model_name)
+            print('='*50, 'Inference Complete!', '='*50, sep='\n\n')
+            
+    def predict(self, best_model=None):
+        if not best_model:
+            best_model = [model for model in os.listdir(f'./save/{self.config.save_dir}') if 'nbest' not in model and 'best.pt' in model][0]
+        self._predcit(best_model)
     
     def _train_epoch(self):
         gc.collect()
@@ -103,12 +109,13 @@ class BaselineTrainer(Trainer):
                 'loss' : epoch_loss / steps,
                 'lr' : self.optimizer.param_groups[0]['lr'],
             })
-            
             if self.is_wandb:
                 wandb.log({'train_loss':epoch_loss/steps})
+        if self.lr_scheduler:
+            self.lr_scheduler.step()
         pbar.close()
 
-    def _valid_epoch(self, epoch):
+    def _eval_epoch(self, epoch):
         val_loss = 0
         val_steps = 0
         pbar = tqdm(self._get_val_dataloader())
@@ -145,28 +152,32 @@ class BaselineTrainer(Trainer):
             pbar.close()
             
             val_loss /= val_steps
-            epoch = '0' + str(epoch+1) if epoch < 9 else epoch + 1
 
             start_logits_all = np.concatenate(start_logits_all)
             end_logits_all = np.concatenate(end_logits_all)
-            metrics = self.metric.compute_EM_f1(start_logits_all, end_logits_all, epoch)
+
+            anls_score = self.compute_metrics.compute_val(
+                start_logits_all,
+                end_logits_all,
+                '0' + str(epoch+1) if epoch < 9 else epoch + 1
+            )
             
-            print(f"Epoch [{epoch+1}/{self.epochs}] Val_loss : {val_loss}")
-            print(f"Epoch [{epoch+1}/{self.epochs}] Extact Match :", metrics['exact_match'])
-            print(f"Epoch [{epoch+1}/{self.epochs}] F1_score :", metrics['f1'])
+            print(f"Epoch [{epoch+1}/{self.config.train.max_epoch}] Val_loss :", val_loss)
+            print(f"Epoch [{epoch+1}/{self.config.train.max_epoch}] ANLS :", anls_score)
             
             if self.is_wandb:
                 wandb.log({'epoch' : epoch+1, 'val_loss' : val_loss})
-                wandb.log({'epoch' : epoch+1, 'Exact_Match' : metrics['exact_match']})
-                wandb.log({'epoch' : epoch+1, 'f1_score' : metrics['f1']})
-
-            torch.save(self.model.state_dict(), f'save/{self.config.save_dir}/epoch:{epoch}_model.pt')
+                wandb.log({'epoch' : epoch+1, 'ANLS' : anls_score})
+                
+            epoch = '0' + str(epoch+1) if epoch < 9 else epoch + 1
+            torch.save(self.model.state_dict(), f'save/{self.save_dir}/epoch:{epoch}_model.pt')
             print('save checkpoint!')
 
-        self.best_model_epoch.append(f'save/{self.config.save_dir}/epoch:{epoch}_model.pt')
+        self.best_model_epoch.append(f'save/{self.save_dir}/epoch:{epoch}_model.pt')
         self.val_loss_values.append(val_loss)
+        self.val_score_values.append(anls_score)
 
-    def _test(self, best_model_name):
+    def _predcit(self, best_model_name):
         checkpoint = torch.load(best_model_name)
         self.model.load_state_dict(checkpoint)
         self._move_model_to_device(self.model, self.device)
@@ -192,7 +203,7 @@ class BaselineTrainer(Trainer):
 
         start_logits_all = np.concatenate(start_logits_all)
         end_logits_all = np.concatenate(end_logits_all)
-        metrics = metric.compute_EM_f1(start_logits_all, end_logits_all, None)
+        self.compute_metrics.compute_test(start_logits_all, end_logits_all)
 
     def _move_model_to_device(self, model, device):
         model = model.to(device)
@@ -231,7 +242,7 @@ class BaselineTrainer(Trainer):
 
     def _get_test_dataloader(self) -> DataLoader:
         if self.test_dataset is None:
-            raise ValueError("Trainer: val 데이터셋을 넣어주세요.")
+            raise ValueError("Trainer: test 데이터셋을 넣어주세요.")
         
         test_dataset = self.test_dataset
         batch_size = self.config.train.test_batch_size
@@ -246,7 +257,10 @@ class BaselineTrainer(Trainer):
         )
 
     def select_best_model(self):
+        # loss 기준
         best_model = self.best_model_epoch[np.array(self.val_loss_values).argmin()]
+        # score 기준
+        best_model = self.best_model_epoch[np.array(self.val_score_values).argmax()]
         os.rename(best_model, best_model.split('.pt')[0] + '_best.pt')
         
         return best_model.split('.pt')[0] + '_best.pt'
