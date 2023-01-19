@@ -15,31 +15,42 @@ class Metrics_nbest():
         n_best_size:int=20,
         max_answer_length:int=20
     ):
+        data_remove_columns = ['question', 'image', 'docId', 'ucsf_document_id', 'ucsf_document_page_no', 'data_split', 'boxes']
+        dataset_remove_columns = ['image', 'input_ids', 'token_type_ids', 'attention_mask', 'bbox', 'start_positions', 'end_positions']
+        dataset_remove_columns_t = ['image', 'input_ids', 'token_type_ids', 'attention_mask', 'bbox']
+        self.do_test, self.do_test = False, False
         if val_data and val_dataset:
-            self.val_examples = val_data # 전처리 전의 원본 데이터인 example을 의미
-            self.val_features = val_dataset # 전처리가 완료된 dataset을 의미
-            self.val_features_per_example = self.make_features_per_example(val_data, val_dataset)
+            self.val_examples = val_data.remove_columns(data_remove_columns) # 전처리 전의 원본 데이터인 example을 의미
+            self.val_features = val_dataset.remove_columns(dataset_remove_columns) # 전처리가 완료된 dataset을 의미
+            self.do_val = True
         if test_data and test_dataset:
-            self.test_examples = test_data # 전처리 전의 원본 데이터인 example을 의미
-            self.test_features = test_dataset # 전처리가 완료된 dataset을 의미
-            self.test_features_per_example = self.make_features_per_example(test_data, test_dataset)
+            self.test_examples = test_data.remove_columns(data_remove_columns) # 전처리 전의 원본 데이터인 example을 의미
+            self.test_features = test_dataset.remove_columns(dataset_remove_columns_t) # 전처리가 완료된 dataset을 의미
+            self.do_test = True
         self.n_best_size = n_best_size
         self.max_answer_length = max_answer_length
         
-    def make_features_per_example(self, examples, features) -> collections.defaultdict:
+    def _make_features_per_example(self, examples, features) -> collections.defaultdict:
         # 각 문서의 id를 키값, index를 밸류값으로 하는 딕셔너리 생성(참조용)
         '''
         키값으로 인덱스, 밸류값으로 동일한 아이디를 가지는 문서들의 index를 가지는 리스트(example_id_to_index 참조)
         ex) features_per_example[defaultdict] : {0: [0], 1: [1], 2: [2], 3: [3, 4], 4: [5, 6]}
         3 : [3,4]인 경우 questionId가 동일하지만 문장의 길이가 max_length보다 길어서 truncation되서 나눠진 데이터
         '''
+        
         example_id_to_index = {k: i for i, k in enumerate(examples["questionId"])}
         features_per_example = collections.defaultdict(list)
-        for i, feature in enumerate(features):
+        for i, feature in enumerate(tqdm(features)):
             features_per_example[example_id_to_index[feature["questionId"]]].append(i)
             
         return features_per_example
     
+    def make(self):
+        if self.do_val:
+            self.val_features_per_example = self._make_features_per_example(self.val_examples, self.val_features)
+        if self.do_test:
+            self.test_features_per_example = self._make_features_per_example(self.test_examples, self.test_features)
+        
     def _set_save_dir(self, save_dir):
         self.save_dir = save_dir
         print('='*50, f'저장 경로는 {self.save_dir} 입니다.' , '='*50, sep='\n\n')

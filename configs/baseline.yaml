@@ -23,15 +23,15 @@ model:
     optimizer : AdamW
 
 train:
-    seed: 42
-    gpus: 1
     batch_size: 16
     test_batch_size: 16
     max_epoch: 5
     dropout_rate : 0.1
     learning_rate: 3e-5
-    logging_step: 1
+    num_workers: 8
     max_length : 512
     stride : 128
     n_best_size : 20
     max_answer_length: 20
+    seed: 42
+    gpus: 1
