@@ -3,7 +3,7 @@ wandb:
     project: layoutLM
     group: layoutLMv2
     experiment: test
-    use_wandb: False # trainer에서 wandb를 사용할지 안할지
+    use_wandb: True # trainer에서 wandb를 사용할지 안할지
     online: True # 온라인으로 할지 오프라인으로 할지
 
 save_dir : layoutLMv2
