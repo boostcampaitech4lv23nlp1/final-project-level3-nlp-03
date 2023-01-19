@@ -15,10 +15,11 @@ from datasets.utils.logging import set_verbosity_error
 
 set_verbosity_error()
 class LayouLMPreprocess():
-    def __init__(self, tokenizer:PreTrainedTokenizerFast, max_length:int, stride:int):
+    def __init__(self, tokenizer:PreTrainedTokenizerFast, max_length:int, stride:int, boundary):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.stride = stride
+        self.boundary = boundary
 
     def train(self, train_data:datasets.formatting.formatting.LazyBatch) -> transformers.tokenization_utils_base.BatchEncoding:
         """
@@ -88,13 +89,13 @@ class LayouLMPreprocess():
             end_positions = []
             for answer in answers:
                 answer_list = answer.split()
-                match, answer_start_index, answer_end_index = find_candidates(answer_list, words, question, boxes)
+                match, answer_start_index, answer_end_index = find_candidates(answer_list, words, question, boxes, self.boundary)
                     
                 # 만약 찾지 못했다면 정답의 맨 뒤 문자부터 제거하여 재탐색 시작
                 if not match and len(answer)>1:
                     for i in range(len(answer), 0, -1):
                         answer_i_list = (answer[:i-1] + answer[i:]).split()
-                        match, answer_start_index, answer_end_index = find_candidates(answer_i_list, words, question, boxes)
+                        match, answer_start_index, answer_end_index = find_candidates(answer_i_list, words, question, boxes, self.boundary)
                         
                         if match:
                             break
@@ -209,13 +210,13 @@ class LayouLMPreprocess():
             end_positions = []
             for answer in answers:
                 answer_list = answer.split()
-                match, answer_start_index, answer_end_index = find_candidates(answer_list, words, question, boxes)
+                match, answer_start_index, answer_end_index = find_candidates(answer_list, words, question, boxes, self.boundary)
                     
                 # 만약 찾지 못했다면 정답의 맨 뒤 문자부터 제거하여 재탐색 시작
                 if not match and len(answer)>1:
                     for i in range(len(answer), 0, -1):
                         answer_i_list = (answer[:i-1] + answer[i:]).split()
-                        match, answer_start_index, answer_end_index = find_candidates(answer_i_list, words, question, boxes)
+                        match, answer_start_index, answer_end_index = find_candidates(answer_i_list, words, question, boxes, self.boundary)
                         
                         if match:
                             break
@@ -383,7 +384,7 @@ def find_points(
             question_list = list(question)
             search_range = len(words_list) - (len(question_list)-1)
             for idx, i in enumerate(range(search_range)):
-                nld = check_answer(question_list, words_list[i:i+len(question_list)], boundary=0.5)
+                nld = check_answer(question_list, words_list[i:i+len(question_list)], boundary=0.3)
                 if nld != 100:
                     # 여러 단어들 중에서 중앙에 위치한 단어 뽑기 및 단어의 정중앙 좌표 위치 뽑아내기
                     if len(question) % 2 == 0: # ex) I love you, too -> love you
@@ -403,13 +404,14 @@ def find_candidates(
     answer_list:List[str],
     words_list:List[str],
     question:str,
-    boxes:List[List[float]]
+    boxes:List[List[float]],
+    boundary
 ) -> Tuple[Optional[List[str]], float, float]:
     
     nld_l = []
     search_range = len(words_list) - (len(answer_list)-1)
     for idx, i in enumerate(range(search_range)):
-        nld = check_answer(answer_list, words_list[i:i+len(answer_list)], boundary=0.5)
+        nld = check_answer(answer_list, words_list[i:i+len(answer_list)], boundary=boundary)
         if nld != 100:
             # 각 원소 : normalized_levenshtein_distance, answer, start_idx, end_idx
             nld_l.append((nld, answer_list, idx, idx+len(answer_list)-1))
