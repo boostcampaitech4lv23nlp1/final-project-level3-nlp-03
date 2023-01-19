@@ -58,7 +58,6 @@ def main(config):
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         test_dataset=test_dataset,
-        tokenizer=tokenizer,
         compute_metrics=compute_metrics,
         optimizers=(optimizer,lr_scheduler)
     )

@@ -111,11 +111,13 @@ class BaselineTrainer():
             })
             if self.is_wandb:
                 wandb.log({'train_loss':epoch_loss/steps})
+            # print(time.time()- standard)
         if self.lr_scheduler:
             self.lr_scheduler.step()
         pbar.close()
 
     def _eval_epoch(self, epoch):
+        if epoch == 0: self.compute_metrics.make()
         val_loss = 0
         val_steps = 0
         pbar = tqdm(self._get_val_dataloader())
@@ -222,6 +224,8 @@ class BaselineTrainer():
             batch_size=batch_size,
             sampler=sampler,
             collate_fn=collate_fn,
+            pin_memory=True,
+            num_workers=self.config.train.num_workers
         )
         
     def _get_val_dataloader(self) -> DataLoader:
@@ -238,6 +242,8 @@ class BaselineTrainer():
             batch_size=batch_size,
             sampler=sampler,
             collate_fn=collate_fn,
+            pin_memory=True,
+            num_workers=self.config.train.num_workers
         )
 
     def _get_test_dataloader(self) -> DataLoader:
@@ -254,6 +260,8 @@ class BaselineTrainer():
             batch_size=batch_size,
             sampler=sampler,
             collate_fn=collate_fn,
+            pin_memory=True,
+            num_workers=self.config.train.num_workers
         )
 
     def select_best_model(self):
