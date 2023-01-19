@@ -25,7 +25,7 @@ def main(config):
     test_data = load_dataset(config.data.test_load, split='test')
 
     print('='*50,f'현재 적용되고 있는 전처리 클래스는 {config.data.preprocess}입니다.', '='*50, sep='\n\n')
-    preprocess = getattr(Data_process, config.data.preprocess)(tokenizer, max_length=512, stride=128)
+    preprocess = getattr(Data_process, config.data.preprocess)(tokenizer, max_length=512, stride=128, boundary=config.data.boundary)
     train_dataset = train_data.map(preprocess.train, remove_columns=train_data.column_names, num_proc=4, batched=True)
     val_dataset = val_data.map(preprocess.val, remove_columns=val_data.column_names, num_proc=2, batched=True)
     test_dataset = test_data.map(preprocess.test, remove_columns=test_data.column_names, num_proc=2, batched=True)
