@@ -320,7 +320,7 @@ class LayouLMPreprocess():
 def NLD(s1:str,s2:str) -> float:
     return editdistance.eval(s1.lower(),s2.lower()) / ((len(s1)+len(s2))/2) # normalized_levenshtein_distance
 
-def check_answer(answer_list:List[str], words_list:List[str], boundary:int=0.5) -> float:
+def check_answer(answer_list:List[str], words_list:List[str], boundary:float=0.5) -> float:
     similarity_score = 0
     for answer, word in zip(answer_list, words_list):
         ld_score = NLD(answer, word)
@@ -333,7 +333,7 @@ def check_answer(answer_list:List[str], words_list:List[str], boundary:int=0.5) 
         
     return similarity_score / len(answer_list) # 가장 좋은 값은 0.0
     
-def calculate_euclidean_mean(question_points:List[Tuple[int]], boxes:List[Tuple[int]]):
+def calculate_euclidean_mean(question_points:List[Tuple[float]], boxes:List[Tuple[float]]):
     euclidean = 0
     a_point = ((boxes[2] + boxes[0])/2, (boxes[3] + boxes[1])/2)
     for q_point in question_points:
@@ -371,9 +371,9 @@ def find_noun_ngram(question:str, ngram:int) -> Set[Tuple[str]]:
 def find_points(
     question:str,
     words_list:List[str],
-    boxes:List[List[int]],
+    boxes:List[List[float]],
     ngrams:int=3
-) -> List[Tuple[int]]:
+) -> List[Tuple[float]]:
     
     question_words = sum([[ngram_question for ngram_question in find_noun_ngram(question, ngram)] for ngram in range(1, ngrams+1)], [])
     # boxes : (x1, y1, x2, y2)
@@ -403,8 +403,8 @@ def find_candidates(
     answer_list:List[str],
     words_list:List[str],
     question:str,
-    boxes:List[List[int]]
-) -> Tuple[Optional[List[str]], int, int]:
+    boxes:List[List[float]]
+) -> Tuple[Optional[List[str]], float, float]:
     
     nld_l = []
     search_range = len(words_list) - (len(answer_list)-1)
