@@ -106,8 +106,8 @@ class Metrics_nbest():
                         prelim_predictions.append(
                             {
                                 "offsets": (
-                                    word_idx_mapping[start_index].item(),
-                                    word_idx_mapping[end_index].item(),
+                                    word_idx_mapping[start_index],
+                                    word_idx_mapping[end_index],
                                 ),
                                 "score": start_logits[start_index] + end_logits[end_index],
                                 "start_logit": start_logits[start_index],
