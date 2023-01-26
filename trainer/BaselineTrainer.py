@@ -45,12 +45,13 @@ class BaselineTrainer():
         self.compute_metrics = compute_metrics
         self.optimizer, self.lr_scheduler = optimizers
 
-        self.save_dir = check_dir(config.save_dir)
-        self.compute_metrics._set_save_dir(self.save_dir)
+        self.save_dir = config.save_dir
         self.best_model_epoch, self.val_loss_values, self.val_score_values = [], [], []
 
     def loop(self):
         self.is_wandb = wandb_setting(self.config)
+        self.save_dir = check_dir(self.config.save_dir)
+        self.compute_metrics._set_save_dir(self.save_dir)
         for epoch in range(self.config.train.max_epoch):
             standard_time = time.time()
             self._train_epoch()
@@ -66,8 +67,8 @@ class BaselineTrainer():
             print('='*50, 'Inference Complete!', '='*50, sep='\n\n')
             
     def predict(self, best_model=None):
-        if not best_model:
-            best_model = [model for model in os.listdir(f'./save/{self.config.save_dir}') if 'nbest' not in model and 'best.pt' in model][0]
+        self.compute_metrics.make()
+        assert not best_model, "path를 입력해주세요."
         self._predcit(best_model)
     
     def _train_epoch(self):

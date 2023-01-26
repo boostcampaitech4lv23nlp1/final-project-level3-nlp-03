@@ -22,10 +22,10 @@ class LayouLMPreprocess():
 
     def train(self, train_data:datasets.formatting.formatting.LazyBatch) -> transformers.tokenization_utils_base.BatchEncoding:
         """
-        max_length = 384를 넘어가는 문장이 들어오게 되면 stride 길이 만큼 중첩해서 문장을 쪼개는 방식의 전처리 함수입니다.
+        max_length = 512를 넘어가는 문장이 들어오게 되면 stride 길이 만큼 중첩해서 문장을 쪼개는 방식의 전처리 함수입니다.
         truncation = only_second로 고정시키며, 이는 첫번째로 들어오는 sentence는 고정시키고 반복적으로 넣어줍니다.
         그리고 second 문장인 context의 길이가 max_length를 넘어가게 되면 max_length만큼 짤라서 나눠서 tokenizer에 넣게 됩니다.
-        question + context 문장이 384를 넘어가게 되면 384(max_length) + 128(stride) 길이만큼 토크나이징한 후에,
+        question + context 문장이 512를 넘어가게 되면 384(max_length) + 128(stride) 길이만큼 토크나이징한 후에,
         question + context[나머지 길이 stride(128) + remainder(ex 124)]만큼 토크나이징을 진행합니다.
         return: 다음과 같은 키 밸류값을 가집니다.
             {

@@ -13,20 +13,20 @@ class Metrics_nbest():
         test_data:datasets.arrow_dataset.Dataset=None,
         test_dataset:datasets.arrow_dataset.Dataset=None,
         n_best_size:int=20,
-        max_answer_length:int=20
+        max_answer_length:int=20,
+        do_predict:bool=True
     ):
         data_remove_columns = ['question', 'image', 'docId', 'ucsf_document_id', 'ucsf_document_page_no', 'data_split', 'boxes']
         dataset_remove_columns = ['image', 'input_ids', 'token_type_ids', 'attention_mask', 'bbox', 'start_positions', 'end_positions']
         dataset_remove_columns_t = ['image', 'input_ids', 'token_type_ids', 'attention_mask', 'bbox']
-        self.do_test, self.do_test = False, False
+        self.do_val, self.do_predict = False, do_predict
         if val_data and val_dataset:
             self.val_examples = val_data.remove_columns(data_remove_columns) # 전처리 전의 원본 데이터인 example을 의미
             self.val_features = val_dataset.remove_columns(dataset_remove_columns) # 전처리가 완료된 dataset을 의미
             self.do_val = True
-        if test_data and test_dataset:
+        if do_predict and test_data and test_dataset:
             self.test_examples = test_data.remove_columns(data_remove_columns) # 전처리 전의 원본 데이터인 example을 의미
             self.test_features = test_dataset.remove_columns(dataset_remove_columns_t) # 전처리가 완료된 dataset을 의미
-            self.do_test = True
         self.n_best_size = n_best_size
         self.max_answer_length = max_answer_length
         
@@ -48,7 +48,7 @@ class Metrics_nbest():
     def make(self):
         if self.do_val:
             self.val_features_per_example = self._make_features_per_example(self.val_examples, self.val_features)
-        if self.do_test:
+        if self.do_predict:
             self.test_features_per_example = self._make_features_per_example(self.test_examples, self.test_features)
         
     def _set_save_dir(self, save_dir):
@@ -218,8 +218,8 @@ class Metrics_nbest():
                         prelim_predictions.append(
                             {
                                 "offsets": (
-                                    word_idx_mapping[start_index].item(),
-                                    word_idx_mapping[end_index].item(),
+                                    word_idx_mapping[start_index],
+                                    word_idx_mapping[end_index],
                                 ),
                                 "score": start_logits[start_index] + end_logits[end_index],
                                 "start_logit": start_logits[start_index],
@@ -264,7 +264,7 @@ class Metrics_nbest():
             # best prediction을 선택합니다. all_predictions에 id에 해당하는 가장 높은 확률[0]의 예상 text를 추가합니다.
             all_predictions.append({
                 'answer':predictions[0]["pred"],
-                'questionId':[example["questionId"]]
+                'questionId':example["questionId"]
             })
 
         # all_predictions와 n_best를 json파일로 내보내기

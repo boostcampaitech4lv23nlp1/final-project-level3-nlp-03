@@ -7,12 +7,17 @@ pip install transformers==4.25.1
 pip install editdistance==0.6.2
 pip install wandb==0.13.9
 pip install pillow==8.1.0
+pip install einops
+pip install omegaconf
+pip install datasets
 pip install nltk
+pip install jupyter
+pip install ipykernel
 apt install tesseract-ocr
 pip install pytesseract
 python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu101/torch1.8/index.html
 
-python3
+python3 -c "
 import nltk
 nltk.download('averaged_perceptron_tagger')
-exit()
+"
