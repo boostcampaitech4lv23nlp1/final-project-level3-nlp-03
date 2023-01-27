@@ -13,7 +13,7 @@ data:
     train_load: Trailblazer-Yoo/boostcamp-docvqa-v2
     val_load: Trailblazer-Yoo/boostcamp-docvqa-v2
     test_load: Trailblazer-Yoo/boostcamp-docvqa-v2-test
-    preprocess: LayouLMPreprocess
+    preprocess: LayoutLMPreprocess
     
 model:
     model_name : microsoft/layoutlmv2-base-uncased

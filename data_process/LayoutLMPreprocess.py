@@ -14,7 +14,7 @@ from datasets.utils.logging import set_verbosity_error
 ## nltk.download('averaged_perceptron_tagger')
 
 set_verbosity_error()
-class LayouLMPreprocess():
+class LayoutLMPreprocess():
     def __init__(self, tokenizer:PreTrainedTokenizerFast, max_length:int, stride:int):
         self.tokenizer = tokenizer
         self.max_length = max_length

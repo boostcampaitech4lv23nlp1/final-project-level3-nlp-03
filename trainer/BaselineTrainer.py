@@ -62,13 +62,14 @@ class BaselineTrainer():
         gc.collect()
         del self.train_dataset, self.val_dataset
         best_model_name = self.select_best_model() if self.config.train.max_epoch > 1 else None
-        if self.config.do_test and best_model_name:
+        if self.config.do_predict and best_model_name:
             self._predcit(best_model_name)
             print('='*50, 'Inference Complete!', '='*50, sep='\n\n')
             
     def predict(self, best_model=None):
         self.compute_metrics.make()
-        assert not best_model, "path를 입력해주세요."
+        self.compute_metrics._set_save_dir(self.save_dir)
+        assert best_model, "path를 입력해주세요."
         self._predcit(best_model)
     
     def _train_epoch(self):

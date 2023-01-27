@@ -64,7 +64,7 @@ def main(config):
     
     trainer.loop()
     
-    ## trainer.predict(path) 오직 predict (inference만 하고싶은 경우)
+    # trainer.predict('save/layoutLMv2/epoch:02_model_best.pt') # 오직 predict (inference만 하고싶은 경우)
     
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
