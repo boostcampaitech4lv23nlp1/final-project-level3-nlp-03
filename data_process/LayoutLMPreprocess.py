@@ -3,6 +3,7 @@ from nltk.tag import pos_tag
 import random
 from typing import *
 import re
+from tqdm.auto import tqdm
 from heapq import heappush
 import datasets
 import editdistance
@@ -43,6 +44,9 @@ class LayoutLMPreprocess():
         words(List[int], dim:(batch, sequence)) : ocr로 추출한 단어들의 리스트
         boxes(List[in], dim:(batch, point:4)) : ocr로 추출한 x, y 좌표를 width, height로 normalize한 좌표계
         '''
+        ###
+        
+        ###    
         tokenized_sentences = self.tokenizer(
             train_data['question'],
             train_data['words'],
@@ -54,7 +58,17 @@ class LayoutLMPreprocess():
             return_overflowing_tokens=True, # (List[int]) : 여러개로 쪼갠 문장들이 하나의 같은 context라는 것을 나타내주는 리스트, batch 단위일때 사용합니다.
             padding="max_length",
         )
-        
+        def coords(data):
+            n = []
+            for coord in data :
+                mid_x = int(sum(coord[::2]) / 2)
+                mid_y = int(sum(coord[1::2]) / 2)
+                n.append([mid_x-1,mid_y-1,mid_x+1, mid_y+1])
+            return n
+        tmp_data = tokenized_sentences['bbox']
+        for i in range(len(tmp_data)):
+            tmp = coords(tmp_data[i])
+            tokenized_sentences['bbox'][i] = tmp
         # batch 단위 안에서 각 데이터 및 max_length를 넘어가는 데이터를 포함함
         # ex) if batch = 4, max_length를 안넘을 경우 -> [0,0,0,0], 1,2번째 데이터가 max_len 넘을 경우 -> [0,1,0,1,0,0]
         overflow_to_sample_mapping = tokenized_sentences.pop("overflow_to_sample_mapping")
@@ -173,7 +187,17 @@ class LayoutLMPreprocess():
             return_overflowing_tokens=True, # (List[int]) : 여러개로 쪼갠 문장들이 하나의 같은 context라는 것을 나타내주는 리스트, batch 단위일때 사용합니다.
             padding="max_length",
         )
-        
+        def coords(data):
+            n = []
+            for coord in data :
+                mid_x = int(sum(coord[::2]) / 2)
+                mid_y = int(sum(coord[1::2]) / 2)
+                n.append([mid_x-1,mid_y-1,mid_x+1, mid_y+1])
+            return n
+        tmp_data = tokenized_sentences['bbox']
+        for i in range(len(tmp_data)):
+            tmp = coords(tmp_data[i])
+            tokenized_sentences['bbox'][i] = tmp        
         # batch 단위 안에서 각 데이터 및 max_length를 넘어가는 데이터를 포함함
         # ex) if batch = 4, max_length를 안넘을 경우 -> [0,1,2,3], 1,2번째 데이터가 max_len 넘을 경우 -> [0,1,1,2,2,3]
         overflow_to_sample_mapping = tokenized_sentences.pop("overflow_to_sample_mapping")
@@ -296,7 +320,17 @@ class LayoutLMPreprocess():
             return_overflowing_tokens=True, # (List[int]) : 여러개로 쪼갠 문장들이 하나의 같은 context라는 것을 나타내주는 리스트, batch 단위일때 사용합니다.
             padding="max_length",
         )
-        
+        def coords(data):
+            n = []
+            for coord in data :
+                mid_x = int(sum(coord[::2]) / 2)
+                mid_y = int(sum(coord[1::2]) / 2)
+                n.append([mid_x-1,mid_y-1,mid_x+1, mid_y+1])
+            return n
+        tmp_data = tokenized_sentences['bbox']
+        for i in range(len(tmp_data)):
+            tmp = coords(tmp_data[i])
+            tokenized_sentences['bbox'][i] = tmp        
         # batch 단위 안에서 각 데이터 및 max_length를 넘어가는 데이터를 포함함
         # ex) if batch = 4, max_length를 안넘을 경우 -> [0,0,0,0], 1,2번째 데이터가 max_len 넘을 경우 -> [0,1,0,1,0,0]
         overflow_to_sample_mapping = tokenized_sentences.pop("overflow_to_sample_mapping")
