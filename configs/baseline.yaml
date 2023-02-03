@@ -1,5 +1,5 @@
 wandb:
-    entity: naver_mrc_nlp3
+    entity: docvqa_nlp6
     project: layoutLM
     group: layoutLMv2
     experiment: test
@@ -10,25 +10,25 @@ save_dir : layoutLMv2
 do_predict: True
 
 data:
-    train_load: Trailblazer-Yoo/boostcamp-docvqa-v2
-    val_load: Trailblazer-Yoo/boostcamp-docvqa-v2
-    test_load: Trailblazer-Yoo/boostcamp-docvqa-v2-test
+    train_load: Ssunbell/boostcamp-docvqa-v2
+    val_load: Ssunbell/boostcamp-docvqa-v2
+    test_load: Ssunbell/boostcamp-docvqa-v2-test
     preprocess: LayoutLMPreprocess
     
 model:
-    model_name : microsoft/layoutlmv2-base-uncased
+    model_name : microsoft/layoutlmv2-large-uncased
     model_class : BaselineModel
     trainer_class: BaselineTrainer
     metric_class : Metrics_nbest
     optimizer : AdamW
 
 train:
-    batch_size: 16
-    test_batch_size: 16
-    max_epoch: 5
+    batch_size: 8
+    test_batch_size: 8
+    max_epoch: 2
     dropout_rate : 0.1
-    learning_rate: 3e-5
-    num_workers: 8
+    learning_rate: 5e-6
+    num_workers: 4
     max_length : 512
     stride : 128
     n_best_size : 20
