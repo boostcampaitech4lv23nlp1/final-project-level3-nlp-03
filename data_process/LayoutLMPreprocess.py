@@ -77,11 +77,11 @@ class LayoutLMPreprocess():
                 cls_index = input_ids[0] # 첫번째 토큰
             
             # sequence가 속하는 example을 찾는다.
-            answers = data['answers'][example_index]
-            words = data['words'][example_index]
-            question = data['question'][example_index]
-            boxes = data['boxes'][example_index]
-            tokenized_sentences['image'].append(data['image'][example_index])
+            answers = train_data['answers'][example_index]
+            words = train_data['words'][example_index]
+            question = train_data['question'][example_index]
+            boxes = train_data['boxes'][example_index]
+            tokenized_sentences['image'].append(train_data['image'][example_index])
 
             # 한 이미지/질문에 여러개의 정답이 있으므로 그 중에 random하게 선택
             start_positions = []
@@ -198,11 +198,11 @@ class LayoutLMPreprocess():
                 cls_index = input_ids[0] # 첫번째 토큰
             
             # sequence가 속하는 example을 찾는다.
-            answers = data['answers'][example_index]
-            words = data['words'][example_index]
-            question = data['question'][example_index]
-            boxes = data['boxes'][example_index]
-            tokenized_sentences['image'].append(data['image'][example_index])
+            answers = val_data['answers'][example_index]
+            words = val_data['words'][example_index]
+            question = val_data['question'][example_index]
+            boxes = val_data['boxes'][example_index]
+            tokenized_sentences['image'].append(val_data['image'][example_index])
 
             # 한 이미지/질문에 여러개의 정답이 있으므로 그 중에 random하게 선택
             start_positions = []
