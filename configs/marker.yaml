@@ -13,7 +13,7 @@ data:
     train_load: Ssunbell/boostcamp-docvqa-marker
     val_load: Ssunbell/boostcamp-docvqa-marker
     test_load: Ssunbell/boostcamp-docvqa-marker-test
-    preprocess: LayoutLMPreprocess
+    preprocess: LayoutLMPreprocessMarker
     
 model:
     model_name : microsoft/layoutlmv2-large-uncased

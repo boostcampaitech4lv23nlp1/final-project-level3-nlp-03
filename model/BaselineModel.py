@@ -10,14 +10,16 @@ class BaselineModel(LayoutLMv2PreTrainedModel):
         super().__init__(config)
         self.dropout_rate = dropout_rate
         self.num_labels = num_labels
-        
-        self.model = AutoModel.from_pretrained(config._name_or_path)
-        self.model.resize_token_embeddings(add_token_num)
 
         self.qa_outputs = nn.Sequential(
             # nn.Dropout(p=self.dropout_rate),
-            nn.Linear(self.model.config.hidden_size, self.num_labels)
+            nn.Linear(config.hidden_size, self.num_labels)
         )
+        
+        self.post_init()
+        
+        self.model = AutoModel.from_pretrained(config._name_or_path)
+        self.model.resize_token_embeddings(add_token_num)
 
     def forward(self,
         input_ids=None,
