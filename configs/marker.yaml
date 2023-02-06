@@ -2,7 +2,7 @@ wandb:
     entity: docvqa_nlp6
     project: layoutLM
     group: layoutLMv2
-    experiment: algorithm+5e-6
+    experiment: marker
     use_wandb: True # trainer에서 wandb를 사용할지 안할지
     online: True # 온라인으로 할지 오프라인으로 할지
 
@@ -10,9 +10,9 @@ save_dir : layoutLMv2
 do_predict: True
 
 data:
-    train_load: Ssunbell/boostcamp-docvqa-v2
-    val_load: Ssunbell/boostcamp-docvqa-v2
-    test_load: Ssunbell/boostcamp-docvqa-v2-test
+    train_load: Ssunbell/boostcamp-docvqa-marker
+    val_load: Ssunbell/boostcamp-docvqa-marker
+    test_load: Ssunbell/boostcamp-docvqa-marker-test
     preprocess: LayoutLMPreprocess
     
 model:

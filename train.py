@@ -2,7 +2,7 @@ import torch
 import argparse
 from omegaconf import OmegaConf
 
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoConfig
 from datasets import load_dataset
 from utils.seed_setting import seed_setting
 
@@ -20,6 +20,11 @@ def main(config):
     assert torch.cuda.is_available(), "GPU를 사용할 수 없습니다."
     
     tokenizer = AutoTokenizer.from_pretrained(config.model.model_name, use_fast=True)
+
+    add_token_num = tokenizer.vocab_size
+    special_token = [f'[Q{i}]'for i in range(1,31)]
+    special_token.extend([f'[/Q{i}]'for i in range(1,31)])
+    add_token_num += tokenizer.add_special_tokens({'additional_special_tokens' : special_token})
     train_data = load_dataset(config.data.train_load, split='train')
     val_data = load_dataset(config.data.val_load, split='val')
     test_data = load_dataset(config.data.test_load, split='test')
@@ -42,10 +47,12 @@ def main(config):
     train_dataset.set_format("torch"), val_dataset.set_format("torch"), test_dataset.set_format("torch")
     
     print('='*50,f'현재 적용되고 있는 모델 클래스는 {config.model.model_class}입니다.', '='*50, sep='\n\n')
+    model_config = AutoConfig.from_pretrained(config.model.model_name)
     model = getattr(Model, config.model.model_class)(
-        model_name = config.model.model_name,
+        config=model_config,
         num_labels=2,
         dropout_rate = config.train.dropout_rate,
+        add_token_num = add_token_num
         )
     
     optimizer = getattr(optim, config.model.optimizer)(model.parameters(), lr=config.train.learning_rate)

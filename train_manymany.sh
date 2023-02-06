@@ -1,5 +1,5 @@
 #!/bin/bash
-CONFIGS=("DeBERTa_8_lr" "DeBERTa_9_lr")
+CONFIGS=("baseline" "baseline_tmp")
 
 for (( i=0; i<2; i++ ))
 do

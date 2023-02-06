@@ -1,18 +1,18 @@
 import torch.nn as nn
 import einops as ein
-from transformers import AutoModel
+from transformers import AutoModel, LayoutLMv2PreTrainedModel
 
-class BaselineModel(nn.Module):
+class BaselineModel(LayoutLMv2PreTrainedModel):
     """_summary_
     베이스라인 모델입니다.
     """
-    def __init__(self, model_name, num_labels, dropout_rate, num_layers=2):
-        super().__init__()
+    def __init__(self, config, num_labels, dropout_rate, add_token_num):
+        super().__init__(config)
         self.dropout_rate = dropout_rate
         self.num_labels = num_labels
-        self.model_name = model_name
         
-        self.model = AutoModel.from_pretrained(self.model_name)
+        self.model = AutoModel.from_pretrained(config._name_or_path)
+        self.model.resize_token_embeddings(add_token_num)
 
         self.qa_outputs = nn.Sequential(
             # nn.Dropout(p=self.dropout_rate),
