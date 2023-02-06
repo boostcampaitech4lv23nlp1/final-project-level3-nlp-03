@@ -2,7 +2,7 @@ import torch
 import argparse
 from omegaconf import OmegaConf
 
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoConfig
 from datasets import load_dataset
 from utils.seed_setting import seed_setting
 
@@ -42,8 +42,9 @@ def main(config):
     train_dataset.set_format("torch"), val_dataset.set_format("torch"), test_dataset.set_format("torch")
     
     print('='*50,f'현재 적용되고 있는 모델 클래스는 {config.model.model_class}입니다.', '='*50, sep='\n\n')
+    model_config = AutoConfig.from_pretrained(config.model.model_name)
     model = getattr(Model, config.model.model_class)(
-        model_name = config.model.model_name,
+        config=model_config,
         num_labels=2,
         dropout_rate = config.train.dropout_rate,
         )
