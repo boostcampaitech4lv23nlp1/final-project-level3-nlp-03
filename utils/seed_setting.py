@@ -1,5 +1,6 @@
 import random
 import numpy
+import os
 from torch import manual_seed, cuda, backends
 
 def seed_setting(seed):
@@ -10,3 +11,4 @@ def seed_setting(seed):
     backends.cudnn.benchmark = False
     numpy.random.seed(seed)
     random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
