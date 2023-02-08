@@ -8,7 +8,7 @@ DocVQA(Document Visual Question Answering)은 RRC(Robust Reading Competetion)에
 
 정확히는 문서 이미지의 텍스트(수기, 타이핑 또는 인쇄) 내용을 추출하고 해석할 뿐만 아니라 레이아웃(페이지 구조, 양식, 표), 텍스트가 아닌 요소(마크, 체크박스, 구분자, 다이어그램) 및 스타일(글꼴, 색상, 강조 표시)을 포함한 수많은 다른 시각적 단서를 활용하는 TASK이다.
 
-## What we done?
+## What we did
 1. 데이터셋에 제공되어있지 않은 Answer index를 찾기 위해 기존의 Hit algorithm을 유클리드기반으로 수정
 2. Category별 Data Annotation, Error Analysis
 3. Visualize Attention Heatmap
