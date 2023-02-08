@@ -1,15 +1,15 @@
 # 1. Overview
-DocVQA 이미지에 따른 질문 추론 시연 영상
+[DocVQA] 이미지와 질문에 따른 답변 추론 시연 영상
 ![chrome_eAufrMwH5i_Trim](https://user-images.githubusercontent.com/73874591/217586967-2c53344f-cd7e-445f-967c-8bef68820040.gif)
 
 ## Introduce
-![image](https://user-images.githubusercontent.com/73874591/217573079-2303b321-6c82-46a0-a0ef-b63cbaff4e00.png)
-DocVQA(Document Visual Question Answering)은 RRC(Robust Reading Competetion)에서 2021년 내놓은 Task 중 하나로 기존의 DAR방식보다 한단계 더 높은 난이도의 TASK이다.
+![image](https://user-images.githubusercontent.com/73874591/217573079-2303b321-6c82-46a0-a0ef-b63cbaff4e00.png)   
+DocVQA(Document Visual Question Answering)는 RRC(Robust Reading Competetion)에서 2021년에 내놓은 Task 중 하나로, 기존의 DAR방식보다 한 단계 더 높은 난이도의 TASK입니다.
 
-정확히는 문서 이미지의 텍스트(수기, 타이핑 또는 인쇄) 내용을 추출하고 해석할 뿐만 아니라 레이아웃(페이지 구조, 양식, 표), 텍스트가 아닌 요소(마크, 체크박스, 구분자, 다이어그램) 및 스타일(글꼴, 색상, 강조 표시)을 포함한 수많은 다른 시각적 단서를 활용하는 TASK이다.
+정확히는 문서 이미지의 텍스트(수기, 타이핑 또는 인쇄) 내용을 추출하고 해석할 뿐만 아니라 레이아웃(페이지 구조, 양식, 표), 텍스트가 아닌 요소(마크, 체크박스, 구분자, 다이어그램) 및 스타일(글꼴, 색상, 강조 표시)을 포함한 수많은 다른 시각적 단서를 활용하는 TASK입니다.
 
 ## What we did
-1. 데이터셋에 제공되어있지 않은 Answer index를 찾기 위해 기존의 Hit algorithm을 유클리드기반으로 수정
+1. 데이터셋에 제공되어있지 않은 Answer index를 찾기 위해 기존의 Hit algorithm을 유클리드 기반으로 수정
 2. Category별 Data Annotation, Error Analysis
 3. Visualize Attention Heatmap
 4. Decoder Generate
