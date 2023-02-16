@@ -1,0 +1,40 @@
+wandb:
+    entity: connect
+    project: Decoder
+    group: Decoder
+    experiment: Decoder
+    use_wandb: True # trainer에서 wandb를 사용할지 안할지
+    online: True # 온라인으로 할지 오프라인으로 할지
+    sweep: True
+
+save_dir : enc_dec2
+do_predict: False
+
+data:
+    train_load: Ssunbell/boostcamp-docvqa
+    val_load: Ssunbell/boostcamp-docvqa
+    test_load: Ssunbell/boostcamp-docvqa-test
+    preprocess: DecoderPreprocess
+    boundary: 0.5
+    
+model:
+    model_name : microsoft/layoutlmv2-large-uncased
+    dec_model_name : facebook/bart-large
+    model_class : DecoderModel
+    trainer_class: DecoderTrainer
+    metric_class : Metrics_nbest
+    optimizer : AdamW
+
+train:
+    batch_size: 2
+    test_batch_size: 2
+    max_epoch: 1113
+    dropout_rate : 0.1
+    learning_rate: 0.000009825778523461594
+    num_workers: 8
+    max_length : 512
+    stride : 128
+    n_best_size : 20
+    max_answer_length: 20
+    seed: 42
+    gpus: 1
